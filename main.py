@@ -8,44 +8,56 @@ REVIEWS_URL = "https://dvmn.org/api/user_reviews/"
 POOL_API_URL = "https://dvmn.org/api/long_polling/"
 
 
-def main():
+def update_time(json_data):
+    if "last_attempt_timestamp" in json_data:
+        return json_data["last_attempt_timestamp"]
+    elif "timestamp_to_request" in json_data:
+        return json_data["timestamp_to_request"]
+    else:
+        return None
+
+
+if __name__ == "__main__":
     load_dotenv()
-    dvmn_token = os.getenv("dvmn_token")
-    bot_token = os.getenv("bot_token")
-    my_id = os.getenv("id")
-    headers = {"Authorization": f"Token {dvmn_token}"}
+    dvmn_token = os.getenv("DVMN_TOKEN")
+    bot_token = os.getenv("BOT_TOKEN")
+    bot = telegram.Bot(token=bot_token)
+    my_id = os.getenv("ID")
     timestamp = None
+    headers = {"Authorization": f"Token {dvmn_token}"}
+
     while True:
         try:
-            if timestamp:
-                payload = {"timestamp": timestamp}
-                response = requests.get(
-                    POOL_API_URL, headers=headers, params=payload
-                ).json()
-            else:
-                response = requests.get(POOL_API_URL, headers=headers).json()
-                if "last_attempt_timestamp" in response:
-                    timestamp = response["last_attempt_timestamp"]
-                elif "timestamp_to_request" in response:
-                    timestamp = response["timestamp_to_request"]
-
-            if response["status"] == "found":
-                for attempt in response["new_attempts"]:
-                    title = attempt["lesson_title"]
-                    if attempt["is_negative"]:
-                        result = "Но у преподавателя есть замечания."
-                    else:
-                        result = "Все хорошо, можете продолжать."
-                message = f"Работа {title} проверена, \n{result}"
-                bot = telegram.Bot(token=bot_token)
+            print("sending req->")
+            payload = {"timestamp": timestamp} if timestamp else {}
+            response = requests.get(
+                POOL_API_URL, headers=headers, params=payload
+            )
+            response.raise_for_status()
+            json_data = response.json()
+            timestamp = update_time(json_data)
+            if json_data["status"] != "found":
+                print(
+                    "Got response, but status - {}".format(json_data["status"])
+                )
+                continue
+            checked_exercises = [
+                {
+                    "title": attempt["lesson_title"],
+                    "result": "Но у преподавателя есть замечания."
+                    if attempt["is_negative"]
+                    else "Все хорошо, можете продолжать.",
+                }
+                for attempt in json_data["new_attempts"]
+            ]
+            for exercise in checked_exercises:
+                message = "Работа '{}' проверена, {}".format(
+                    exercise["title"], exercise["result"]
+                )
                 bot.send_message(chat_id=my_id, text=message)
-            else:
-                print(response["status"])
         except requests.exceptions.ReadTimeout as e:
             print(e)
         except requests.exceptions.ConnectionError as e:
             print(e)
-
-
-if __name__ == "__main__":
-    main()
+        except requests.exceptions.HTTPError as e:
+            print(e)
