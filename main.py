@@ -34,19 +34,18 @@ if __name__ == "__main__":
     dvmn_token = os.getenv("DVMN_TOKEN")
     bot_token = os.getenv("BOT_TOKEN")
     my_id = os.getenv("TELEGRAM_USER_ID")
-    #logging.basicConfig(level=logging.DEBUG)
+
     logger = logging.getLogger("BotLogger")
     logger.setLevel(logging.INFO)
     handler = BotLogHandler(bot_token, my_id)
     logger.addHandler(handler)
 
-    # bot = telegram.Bot(token=bot_token)
     timestamp = None
     headers = {"Authorization": f"Token {dvmn_token}"}
     logger.info("Начало цикла ожидания.")
     while True:
         try:
-            #logging.debug("шлю запрос ->")            
+            logger.debug("шлю запрос ->")
             payload = {"timestamp": timestamp} if timestamp else {}
             response = requests.get(
                 POOL_API_URL, headers=headers, params=payload
@@ -55,7 +54,7 @@ if __name__ == "__main__":
             json_data = response.json()
             timestamp = update_time(json_data)
             if json_data["status"] != "found":
-                logger.info(
+                logger.debug(
                     "Got response, but status - {}".format(json_data["status"])
                 )
                 continue
@@ -72,7 +71,6 @@ if __name__ == "__main__":
                 message = "Работа '{}' проверена, {}".format(
                     exercise["title"], exercise["result"]
                 )
-                # bot.send_message(chat_id=my_id, text=message)
                 logger.info(message)
         except requests.exceptions.ReadTimeout as e:
             logger.error(e)
