@@ -1,6 +1,7 @@
 import requests
 import os
 import telegram
+import logging
 from dotenv import load_dotenv
 
 
@@ -17,18 +18,35 @@ def update_time(json_data):
         return None
 
 
+class BotLogHandler(logging.Handler):
+    def __init__(self, bot_token, telegram_user_id):
+        self.bot = telegram.Bot(token=bot_token)
+        self.chat_id = telegram_user_id
+        logging.Handler.__init__(self)
+
+    def emit(self, record):
+        log_entry = self.format(record)
+        self.bot.send_message(chat_id=self.chat_id, text=log_entry)
+
+
 if __name__ == "__main__":
     load_dotenv()
     dvmn_token = os.getenv("DVMN_TOKEN")
     bot_token = os.getenv("BOT_TOKEN")
-    bot = telegram.Bot(token=bot_token)
     my_id = os.getenv("TELEGRAM_USER_ID")
+    #logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger("BotLogger")
+    logger.setLevel(logging.INFO)
+    handler = BotLogHandler(bot_token, my_id)
+    logger.addHandler(handler)
+
+    # bot = telegram.Bot(token=bot_token)
     timestamp = None
     headers = {"Authorization": f"Token {dvmn_token}"}
-
+    logger.info("Начало цикла ожидания.")
     while True:
         try:
-            print("sending req->")
+            #logging.debug("шлю запрос ->")            
             payload = {"timestamp": timestamp} if timestamp else {}
             response = requests.get(
                 POOL_API_URL, headers=headers, params=payload
@@ -37,7 +55,7 @@ if __name__ == "__main__":
             json_data = response.json()
             timestamp = update_time(json_data)
             if json_data["status"] != "found":
-                print(
+                logger.info(
                     "Got response, but status - {}".format(json_data["status"])
                 )
                 continue
@@ -54,10 +72,11 @@ if __name__ == "__main__":
                 message = "Работа '{}' проверена, {}".format(
                     exercise["title"], exercise["result"]
                 )
-                bot.send_message(chat_id=my_id, text=message)
+                # bot.send_message(chat_id=my_id, text=message)
+                logger.info(message)
         except requests.exceptions.ReadTimeout as e:
-            print(e)
+            logger.error(e)
         except requests.exceptions.ConnectionError as e:
-            print(e)
+            logger.error(e)
         except requests.exceptions.HTTPError as e:
-            print(e)
+            logger.error(e)
