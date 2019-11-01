@@ -22,7 +22,7 @@ if __name__ == "__main__":
     dvmn_token = os.getenv("DVMN_TOKEN")
     bot_token = os.getenv("BOT_TOKEN")
     bot = telegram.Bot(token=bot_token)
-    my_id = os.getenv("ID")
+    my_id = os.getenv("TELEGRAM_USER_ID")
     timestamp = None
     headers = {"Authorization": f"Token {dvmn_token}"}
 
